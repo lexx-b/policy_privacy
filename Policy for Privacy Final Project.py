@@ -28,6 +28,11 @@ update_input = st.selectbox(
     ["Constant", "Periodic", "Rare", "Static"]
 )
 
+collection_input = st.selectbox(
+    "Where is data collected?",
+    ["User Devices", "Central Server"]
+)
+
 trust_input = st.selectbox(
     "Do you trust the computation provider?",
     ["Yes", "Partial", "No"]
@@ -68,23 +73,36 @@ regulation_input = st.multiselect(
 # -----------------------------
 if st.button("Get Recommendation"):
 
-    technologies = ["Anonymization", "Differential Privacy", "Cryptography", "Confidential Computing"]
+    technologies = [
+        "Anonymization",
+        "Local Differential Privacy",
+        "Central Differential Privacy",
+        "Cryptography",
+        "Confidential Computing",
+        "Secure MPC"
+    ]
+
     scores = {tech: 0 for tech in technologies}
 
     def remove(tech):
         if tech in technologies:
             technologies.remove(tech)
 
+    def remove_dp():
+        remove("Local Differential Privacy")
+        remove("Central Differential Privacy")
+
     # -------- Layer 1 --------
     if data_type_input == "PII":
-        scores["Differential Privacy"] += 2
+        scores["Local Differential Privacy"] += 2
+        scores["Central Differential Privacy"] += 2
         scores["Cryptography"] += 2
         scores["Confidential Computing"] += 1
         remove("Anonymization")
 
     elif data_type_input == "Aggregate":
         scores["Anonymization"] += 2
-        scores["Differential Privacy"] += 1
+        scores["Central Differential Privacy"] += 1
 
     elif data_type_input == "Business":
         scores["Cryptography"] += 2
@@ -92,104 +110,108 @@ if st.button("Get Recommendation"):
 
     elif data_type_input == "Research":
         scores["Anonymization"] += 1
-        scores["Differential Privacy"] += 1
+        scores["Central Differential Privacy"] += 1
 
+    # Access
     if access_input == "Internal":
         scores["Confidential Computing"] += 1
-
     elif access_input == "Partners":
         scores["Cryptography"] += 2
-
     elif access_input == "Public":
-        scores["Differential Privacy"] += 3
+        scores["Local Differential Privacy"] += 2
+        scores["Central Differential Privacy"] += 3
         remove("Anonymization")
 
+    # Sharing
     if sharing_input == "Raw Shared":
         scores["Anonymization"] += 2
         remove("Cryptography")
         remove("Confidential Computing")
-
     elif sharing_input == "Results Only":
-        scores["Differential Privacy"] += 3
+        scores["Local Differential Privacy"] += 2
+        scores["Central Differential Privacy"] += 3
         remove("Anonymization")
-
     elif sharing_input == "Model Shared":
-        scores["Differential Privacy"] += 2
+        scores["Central Differential Privacy"] += 2
 
+    # Updates
     if update_input == "Constant":
         remove("Anonymization")
-
+        scores["Local Differential Privacy"] += 2
     elif update_input in ["Rare", "Static"]:
         scores["Anonymization"] += 1
 
     # -------- Layer 2 --------
     if "External" in threats_input:
         scores["Cryptography"] += 1
-        scores["Differential Privacy"] += 1
-
+        scores["Central Differential Privacy"] += 1
     if "Internal" in threats_input:
         scores["Confidential Computing"] += 2
-
     if "Partners" in threats_input:
         scores["Cryptography"] += 2
-
     if "Government" in threats_input:
-        scores["Differential Privacy"] += 1
+        scores["Central Differential Privacy"] += 1
 
+    # Trust
     if trust_input == "Yes":
         scores["Anonymization"] += 1
-
     elif trust_input == "Partial":
         scores["Confidential Computing"] += 2
-
     elif trust_input == "No":
         scores["Cryptography"] += 3
         remove("Anonymization")
 
+    # Adversary
     if adversary_input in ["Active", "Both"]:
         scores["Cryptography"] += 2
         remove("Anonymization")
-
     elif adversary_input == "Passive":
-        scores["Differential Privacy"] += 1
+        scores["Central Differential Privacy"] += 1
 
     # -------- Layer 3 --------
     if accuracy_input == "Exact":
-        remove("Differential Privacy")
+        remove_dp()
         scores["Cryptography"] += 2
         scores["Confidential Computing"] += 2
-
     elif accuracy_input == "Small Error":
-        scores["Differential Privacy"] += 2
-
+        scores["Central Differential Privacy"] += 2
     elif accuracy_input == "Statistical":
-        scores["Differential Privacy"] += 3
+        scores["Central Differential Privacy"] += 3
 
+    # Budget
     if budget_input == "Low":
         remove("Cryptography")
         remove("Confidential Computing")
         scores["Anonymization"] += 1
-
     elif budget_input == "High":
         scores["Cryptography"] += 1
         scores["Confidential Computing"] += 1
 
+    # Multi-party
     if multi_input == "Yes":
-        scores["Cryptography"] += 3
+        scores["Secure MPC"] += 3
+        scores["Cryptography"] += 1
         remove("Anonymization")
-
-    elif multi_input == "No":
+    else:
         scores["Anonymization"] += 1
 
-    if "HIPAA" in regulation_input or "GDPR" in regulation_input:
-        scores["Differential Privacy"] += 2
-        remove("Anonymization")
+    if multi_input == "Yes" and trust_input == "No":
+        scores["Secure MPC"] += 3
 
+    # Regulations
+    if "HIPAA" in regulation_input or "GDPR" in regulation_input:
+        scores["Central Differential Privacy"] += 2
+        remove("Anonymization")
     if "Financial" in regulation_input:
         scores["Cryptography"] += 2
-
     if "None" in regulation_input:
         scores["Anonymization"] += 1
+
+    # Prefer correct DP type based on collection
+    if collection_input == "User Devices":
+        scores["Local Differential Privacy"] += 2
+    else:
+        scores["Central Differential Privacy"] += 2
 
     # -----------------------------
     # RESULTS
@@ -206,12 +228,45 @@ if st.button("Get Recommendation"):
         top = ranked[0][0]
         st.success(f"🏆 Top Recommendation: {top}")
 
-        # Optional explanation
         explanations = {
-            "Differential Privacy": "Best for sharing statistical insights while protecting individual-level data.",
-            "Cryptography": "Best when data must remain hidden during computation, especially across multiple parties.",
+            "Local Differential Privacy": "Data is privatized before leaving the user device.",
+            "Central Differential Privacy": "Noise is added after aggregation in a trusted server.",
+            "Cryptography": "Protects data at rest, in transit, and during computation.",
             "Anonymization": "Best for low-risk datasets in trusted environments.",
-            "Confidential Computing": "Best for processing sensitive data securely in cloud environments."
+            "Confidential Computing": "Secure processing in untrusted/cloud environments.",
+            "Secure MPC": "Joint computation without sharing raw data."
         }
 
         st.info(explanations.get(top, ""))
+
+    # -----------------------------
+    # HYBRID LAYER
+    # -----------------------------
+    st.subheader("➕ Recommended Add-ons")
+
+    addons = []
+
+    if top != "Cryptography":
+        addons.append("Encryption (baseline security)")
+
+    if access_input == "Public" or "HIPAA" in regulation_input or "GDPR" in regulation_input:
+        if collection_input == "User Devices":
+            addons.append("Local Differential Privacy")
+        else:
+            addons.append("Central Differential Privacy")
+
+    if multi_input == "Yes" and trust_input == "No":
+        addons.append("Secure MPC")
+
+    if trust_input == "Partial":
+        addons.append("Confidential Computing")
+
+    if data_type_input == "PII" or access_input == "Public":
+        addons.append("Avoid relying solely on Anonymization")
+
+    if addons:
+        for a in addons:
+            st.write(f"- {a}")
+    else:
+        st.write("No additional technologies recommended.")
+
