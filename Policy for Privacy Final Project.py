@@ -1,239 +1,217 @@
-#!/usr/bin/env python
-# coding: utf-8
+import streamlit as st
 
-# In[2]:
+st.set_page_config(page_title="Privacy Decision Tool", layout="centered")
 
-
-technologies = ["Anonymization", "Differential Privacy", "Cryptography", "Confidential Computing"]
-scores = {tech: 0 for tech in technologies}
-
-
-def remove(tech):
-    if tech in technologies:
-        technologies.remove(tech)
-
+st.title("🔐 Privacy Decision Tool")
+st.write("Answer the questions below to determine the best privacy-preserving technology for your use case.")
 
 # -----------------------------
-# Layer 1: Data and Context
+# USER INPUTS
 # -----------------------------
-# Q1: Data Type
-def data_type(answer):
-    # Options: "PII", "Aggregate", "Business", "Research"
-    if answer == "PII":
+data_type_input = st.selectbox(
+    "What type of data do you work with?",
+    ["PII", "Aggregate", "Business", "Research"]
+)
+
+access_input = st.selectbox(
+    "Who needs access to results?",
+    ["Internal", "Partners", "Public"]
+)
+
+sharing_input = st.selectbox(
+    "How is data shared?",
+    ["Raw Shared", "Results Only", "Model Shared", "Not Sure"]
+)
+
+update_input = st.selectbox(
+    "How often is data updated?",
+    ["Constant", "Periodic", "Rare", "Static"]
+)
+
+trust_input = st.selectbox(
+    "Do you trust the computation provider?",
+    ["Yes", "Partial", "No"]
+)
+
+adversary_input = st.selectbox(
+    "Adversary type?",
+    ["Passive", "Active", "Both", "Not Sure"]
+)
+
+accuracy_input = st.selectbox(
+    "Accuracy requirement?",
+    ["Exact", "Small Error", "Statistical"]
+)
+
+budget_input = st.selectbox(
+    "Budget?",
+    ["Low", "Moderate", "High"]
+)
+
+multi_input = st.selectbox(
+    "Multiple parties computing together?",
+    ["Yes", "No"]
+)
+
+threats_input = st.multiselect(
+    "Who are you protecting data from?",
+    ["External", "Internal", "Partners", "Government"]
+)
+
+regulation_input = st.multiselect(
+    "What regulations apply?",
+    ["HIPAA", "GDPR", "CCPA", "Financial", "None"]
+)
+
+# -----------------------------
+# DECISION LOGIC
+# -----------------------------
+if st.button("Get Recommendation"):
+
+    technologies = ["Anonymization", "Differential Privacy", "Cryptography", "Confidential Computing"]
+    scores = {tech: 0 for tech in technologies}
+
+    def remove(tech):
+        if tech in technologies:
+            technologies.remove(tech)
+
+    # -------- Layer 1 --------
+    if data_type_input == "PII":
         scores["Differential Privacy"] += 2
         scores["Cryptography"] += 2
         scores["Confidential Computing"] += 1
         remove("Anonymization")
 
-    elif answer == "Aggregate":
+    elif data_type_input == "Aggregate":
         scores["Anonymization"] += 2
         scores["Differential Privacy"] += 1
 
-    elif answer == "Business":
+    elif data_type_input == "Business":
         scores["Cryptography"] += 2
         scores["Confidential Computing"] += 2
 
-    elif answer == "Research":
+    elif data_type_input == "Research":
         scores["Anonymization"] += 1
         scores["Differential Privacy"] += 1
 
-
-# Q2: Access Level
-def access(answer):
-    # Options: "Internal", "Partners", "Public"
-    if answer == "Internal":
+    if access_input == "Internal":
         scores["Confidential Computing"] += 1
 
-    elif answer == "Partners":
+    elif access_input == "Partners":
         scores["Cryptography"] += 2
 
-    elif answer == "Public":
+    elif access_input == "Public":
         scores["Differential Privacy"] += 3
         remove("Anonymization")
 
-
-# Q3: Data Sharing Requirement (TIGHTENED)
-def sharing(answer):
-    # Options:
-    # "Raw Shared" → raw dataset leaves your org
-    # "Results Only" → only aggregates/statistics shared
-    # "Model Shared" → trained model shared, not raw data
-    # "Not Sure"
-    
-    if answer == "Raw Shared":
+    if sharing_input == "Raw Shared":
         scores["Anonymization"] += 2
         remove("Cryptography")
         remove("Confidential Computing")
 
-    elif answer == "Results Only":
+    elif sharing_input == "Results Only":
         scores["Differential Privacy"] += 3
         remove("Anonymization")
 
-    elif answer == "Model Shared":
+    elif sharing_input == "Model Shared":
         scores["Differential Privacy"] += 2
 
-    elif answer == "Not Sure":
-        pass  # no strong signal
-
-
-# Q4: Data Update Frequency
-def update_frequency(answer):
-    # Options: "Constant", "Periodic", "Rare", "Static"
-    if answer == "Constant":
+    if update_input == "Constant":
         remove("Anonymization")
 
-    elif answer in ["Rare", "Static"]:
+    elif update_input in ["Rare", "Static"]:
         scores["Anonymization"] += 1
 
-
-# -----------------------------
-# Layer 2: Threats and Trust
-# -----------------------------
-# Q5: Threat Model (TIGHTENED labels)
-def threats(answer_list):
-    # Options inside list: "External", "Internal", "Partners", "Government"
-    
-    if "External" in answer_list:
+    # -------- Layer 2 --------
+    if "External" in threats_input:
         scores["Cryptography"] += 1
         scores["Differential Privacy"] += 1
 
-    if "Internal" in answer_list:
+    if "Internal" in threats_input:
         scores["Confidential Computing"] += 2
 
-    if "Partners" in answer_list:
+    if "Partners" in threats_input:
         scores["Cryptography"] += 2
 
-    if "Government" in answer_list:
+    if "Government" in threats_input:
         scores["Differential Privacy"] += 1
 
-
-# Q6: Trust in Processor
-def trust(answer):
-    # Options: "Yes", "Partial", "No"
-    if answer == "Yes":
+    if trust_input == "Yes":
         scores["Anonymization"] += 1
 
-    elif answer == "Partial":
+    elif trust_input == "Partial":
         scores["Confidential Computing"] += 2
 
-    elif answer == "No":
+    elif trust_input == "No":
         scores["Cryptography"] += 3
         remove("Anonymization")
 
-
-# Q7: Adversary Type
-def adversary_type(answer):
-    # Options: "Passive", "Active", "Both", "Not Sure"
-    if answer in ["Active", "Both"]:
+    if adversary_input in ["Active", "Both"]:
         scores["Cryptography"] += 2
         remove("Anonymization")
 
-    elif answer == "Passive":
+    elif adversary_input == "Passive":
         scores["Differential Privacy"] += 1
 
-
-# -----------------------------
-# Layer 3: Operational Requirements
-# -----------------------------
-# Q8: Accuracy Requirement
-def accuracy(answer):
-    # Options: "Exact", "Small Error", "Statistical"
-    if answer == "Exact":
+    # -------- Layer 3 --------
+    if accuracy_input == "Exact":
         remove("Differential Privacy")
         scores["Cryptography"] += 2
         scores["Confidential Computing"] += 2
 
-    elif answer == "Small Error":
+    elif accuracy_input == "Small Error":
         scores["Differential Privacy"] += 2
 
-    elif answer == "Statistical":
+    elif accuracy_input == "Statistical":
         scores["Differential Privacy"] += 3
 
-
-# Q9: Budget
-def budget(answer):
-    # Options: "Low", "Moderate", "High"
-    if answer == "Low":
+    if budget_input == "Low":
         remove("Cryptography")
         remove("Confidential Computing")
         scores["Anonymization"] += 1
 
-    elif answer == "High":
+    elif budget_input == "High":
         scores["Cryptography"] += 1
         scores["Confidential Computing"] += 1
 
-
-# Q10: Compute Constraints (TIGHTENED wording)
-def compute_constraints(answer):
-    # Options: "Real-time", "Batch", "Flexible"
-    if answer == "Real-time":
-        remove("Cryptography")
-
-    elif answer == "Flexible":
-        scores["Cryptography"] += 1
-
-
-# Q11: Multi-party Computation
-def multi_party(answer):
-    # Options: "Yes", "No"
-    if answer == "Yes":
+    if multi_input == "Yes":
         scores["Cryptography"] += 3
         remove("Anonymization")
 
-    elif answer == "No":
+    elif multi_input == "No":
         scores["Anonymization"] += 1
 
-
-# Q12: Regulation (TIGHTENED labels)
-def regulation(answer_list):
-    # Options: "HIPAA", "GDPR", "CCPA", "Financial", "None"
-    
-    if "HIPAA" in answer_list or "GDPR" in answer_list:
+    if "HIPAA" in regulation_input or "GDPR" in regulation_input:
         scores["Differential Privacy"] += 2
         remove("Anonymization")
 
-    if "Financial" in answer_list:
+    if "Financial" in regulation_input:
         scores["Cryptography"] += 2
 
-    if "None" in answer_list:
+    if "None" in regulation_input:
         scores["Anonymization"] += 1
 
+    # -----------------------------
+    # RESULTS
+    # -----------------------------
+    filtered_scores = {tech: scores[tech] for tech in technologies}
+    ranked = sorted(filtered_scores.items(), key=lambda x: x[1], reverse=True)
 
-# -----------------------------
-# Example Run
-# -----------------------------
-data_type("PII")
-access("Public")
-sharing("Results Only")
-update_frequency("Constant")
+    st.subheader("📊 Recommended Technologies")
 
-threats(["External", "Partners"])
-trust("No")
-adversary_type("Active")
+    for tech, score in ranked:
+        st.write(f"**{tech}** — Score: {score}")
 
-accuracy("Small Error")
-budget("Moderate")
-compute_constraints("Batch")
-multi_party("No")
-regulation(["GDPR"])
+    if ranked:
+        top = ranked[0][0]
+        st.success(f"🏆 Top Recommendation: {top}")
 
+        # Optional explanation
+        explanations = {
+            "Differential Privacy": "Best for sharing statistical insights while protecting individual-level data.",
+            "Cryptography": "Best when data must remain hidden during computation, especially across multiple parties.",
+            "Anonymization": "Best for low-risk datasets in trusted environments.",
+            "Confidential Computing": "Best for processing sensitive data securely in cloud environments."
+        }
 
-# -----------------------------
-# Final Ranking
-# -----------------------------
-filtered_scores = {tech: scores[tech] for tech in technologies}
-ranked = sorted(filtered_scores.items(), key=lambda x: x[1], reverse=True)
-
-print("\nRecommended Technologies:")
-for tech, score in ranked:
-    print(f"{tech}: {score}")
-
-if ranked:
-    print(f"\nTop Choice: {ranked[0][0]}")
-
-
-# In[ ]:
-
-
-
-
+        st.info(explanations.get(top, ""))
