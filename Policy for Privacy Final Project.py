@@ -213,36 +213,44 @@ if st.button("Get Recommendation"):
     else:
         scores["Central Differential Privacy"] += 2
 
+# -----------------------------
+# RESULTS
+# -----------------------------
+filtered_scores = {tech: scores[tech] for tech in technologies}
+ranked = sorted(filtered_scores.items(), key=lambda x: x[1], reverse=True)
+
+st.subheader("📊 Recommendation")
+
+if ranked:
+    top_tech, top_score = ranked[0]
+    st.success(f"🏆 Recommended: {top_tech}")
+
+    # show second option only if it's close
+    if len(ranked) > 1:
+        second_tech, second_score = ranked[1]
+        
+        # "close" threshold (you can tweak this)
+        if second_score >= top_score - 1:
+            st.info(f"Also consider: {second_tech}")
+
     # -----------------------------
-    # RESULTS
+    # EXPLANATIONS
     # -----------------------------
-    filtered_scores = {tech: scores[tech] for tech in technologies}
-    ranked = sorted(filtered_scores.items(), key=lambda x: x[1], reverse=True)
+    explanations = {
+        "Local Differential Privacy": "Local Differential Privacy ensures data is privatized on the user's device before collection. Each user adds noise, so even the server cannot see raw data. This provides very strong privacy but can reduce accuracy.",
+        "Central Differential Privacy": "Central Differential Privacy collects raw data in a trusted server and adds noise when releasing results. It balances strong privacy guarantees with higher accuracy.",
+        "Cryptography": "Cryptography protects data by encrypting it during storage and transmission. Advanced methods allow computation on encrypted data, making it essential for untrusted environments.",
+        "Anonymization": "Anonymization removes identifying information from data. While simple and low-cost, it can be vulnerable to re-identification attacks and is weaker than other methods.",
+        "Confidential Computing": "Confidential Computing uses secure hardware to protect data during processing, ensuring even cloud providers cannot access sensitive data.",
+        "Secure MPC": "Secure Multi-Party Computation allows multiple parties to compute jointly without sharing their raw data, preserving privacy across organizations."
+    }
 
-    st.subheader("📊 Recommended Technologies")
+    st.subheader("🧠 Why this?")
+    st.write(explanations.get(top_tech, ""))
 
-    for tech, score in ranked:
-        st.write(f"**{tech}** — Score: {score}")
-
-    if ranked:
-        top = ranked[0][0]
-        st.success(f"🏆 Top Recommendation: {top}")
-
-        # 🔥 Expanded explanations
-        explanations = {
-            "Local Differential Privacy": "Local Differential Privacy ensures data is privatized on the user's device before collection. Each user adds noise, so even the server cannot see raw data. This provides very strong privacy but can reduce accuracy.",
-            "Central Differential Privacy": "Central Differential Privacy collects raw data in a trusted server and adds noise when releasing results. It balances strong privacy guarantees with higher accuracy.",
-            "Cryptography": "Cryptography protects data by encrypting it during storage and transmission. Advanced methods allow computation on encrypted data, making it essential for untrusted environments.",
-            "Anonymization": "Anonymization removes identifying information from data. While simple and low-cost, it can be vulnerable to re-identification attacks and is weaker than other methods.",
-            "Confidential Computing": "Confidential Computing uses secure hardware to protect data during processing, ensuring even cloud providers cannot access sensitive data.",
-            "Secure MPC": "Secure Multi-Party Computation allows multiple parties to compute jointly without sharing their raw data, preserving privacy across organizations."
-        }
-
-        # 🔥 Show top 3 explanations
-        st.subheader("🧠 Why These?")
-        for tech, _ in ranked[:3]:
-            st.markdown(f"### {tech}")
-            st.write(explanations.get(tech, ""))
+    if len(ranked) > 1 and second_score >= top_score - 1:
+        st.subheader("🤔 Alternative Option")
+        st.write(explanations.get(second_tech, ""))
 
     # -----------------------------
     # HYBRID LAYER
