@@ -228,7 +228,7 @@ if st.button("Get Recommendation"):
         show_second = False
         if len(ranked) > 1:
             second_tech, second_score = ranked[1]
-            if second_score >= top_score - 1:
+            if second_score >= top_score - 3:
                 show_second = True
                 st.info(f"Also consider: {second_tech}")
 
