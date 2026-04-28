@@ -207,7 +207,7 @@ if st.button("Get Recommendation"):
     if "None" in regulation_input:
         scores["Anonymization"] += 1
 
-    # Prefer correct DP type based on collection
+    # Prefer correct DP type
     if collection_input == "User Devices":
         scores["Local Differential Privacy"] += 2
     else:
@@ -228,16 +228,21 @@ if st.button("Get Recommendation"):
         top = ranked[0][0]
         st.success(f"🏆 Top Recommendation: {top}")
 
+        # 🔥 Expanded explanations
         explanations = {
-            "Local Differential Privacy": "Data is privatized before leaving the user device.",
-            "Central Differential Privacy": "Noise is added after aggregation in a trusted server.",
-            "Cryptography": "Protects data at rest, in transit, and during computation.",
-            "Anonymization": "Best for low-risk datasets in trusted environments.",
-            "Confidential Computing": "Secure processing in untrusted/cloud environments.",
-            "Secure MPC": "Joint computation without sharing raw data."
+            "Local Differential Privacy": "Local Differential Privacy ensures data is privatized on the user's device before collection. Each user adds noise, so even the server cannot see raw data. This provides very strong privacy but can reduce accuracy.",
+            "Central Differential Privacy": "Central Differential Privacy collects raw data in a trusted server and adds noise when releasing results. It balances strong privacy guarantees with higher accuracy.",
+            "Cryptography": "Cryptography protects data by encrypting it during storage and transmission. Advanced methods allow computation on encrypted data, making it essential for untrusted environments.",
+            "Anonymization": "Anonymization removes identifying information from data. While simple and low-cost, it can be vulnerable to re-identification attacks and is weaker than other methods.",
+            "Confidential Computing": "Confidential Computing uses secure hardware to protect data during processing, ensuring even cloud providers cannot access sensitive data.",
+            "Secure MPC": "Secure Multi-Party Computation allows multiple parties to compute jointly without sharing their raw data, preserving privacy across organizations."
         }
 
-        st.info(explanations.get(top, ""))
+        # 🔥 Show top 3 explanations
+        st.subheader("🧠 Why These?")
+        for tech, _ in ranked[:3]:
+            st.markdown(f"### {tech}")
+            st.write(explanations.get(tech, ""))
 
     # -----------------------------
     # HYBRID LAYER
@@ -269,4 +274,3 @@ if st.button("Get Recommendation"):
             st.write(f"- {a}")
     else:
         st.write("No additional technologies recommended.")
-
