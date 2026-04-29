@@ -426,7 +426,7 @@ if st.button("Get Recommendation"):
                 show_second = True
                 st.info(f"Also consider: {second_tech}")
 
-        # Explanations
+        # Short explanations (shown immediately)
         explanations = {
             "Local Differential Privacy": "Local Differential Privacy ensures data is privatized on the user's device before collection.",
             "Central Differential Privacy": "Central Differential Privacy collects raw data in a trusted server and adds noise to outputs.",
@@ -436,12 +436,211 @@ if st.button("Get Recommendation"):
             "Secure MPC": "Secure MPC allows multiple parties to compute jointly without sharing raw data."
         }
 
+        # Deep-dive content drawn from the project paper
+        deep_dive = {
+            "Anonymization": {
+                "overview": (
+                    "Anonymization is the process of altering a dataset so that individuals can no longer be "
+                    "identified, either directly or indirectly. The term is frequently misused to describe data "
+                    "that is merely de-identified. True anonymization requires formal privacy models."
+                ),
+                "techniques": [
+                    ("De-identification", "Strips direct identifiers (names, SSNs) but leaves quasi-identifiers "
+                     "(ZIP code, gender, age) intact. These can be combined by an adversary to single out individuals."),
+                    ("k-Anonymity", "Requires that every combination of quasi-identifiers is shared by at least k "
+                     "individuals, achieved through generalization (grouping age 21–25 into a bracket) and suppression."),
+                    ("l-Diversity", "Extends k-anonymity by requiring each group to contain at least l distinct values "
+                     "for the sensitive attribute — preventing inference attacks when a group is homogeneous."),
+                    ("Synthetic Data", "ML models learn the statistical distribution of the original dataset and generate "
+                     "fictional-but-statistically-equivalent records. Retains macro utility without real individuals."),
+                ],
+                "tradeoffs": (
+                    "Privacy and utility are inversely related. A high k value forces aggressive generalization, "
+                    "making hyper-local spatial analysis or granular age-based modeling difficult. In public health, "
+                    "over-anonymizing can mask demographic signals needed to track a localized outbreak — a real social harm."
+                ),
+                "risks": (
+                    "**Linkage attacks:** An adversary joins the anonymized dataset with a public dataset to re-identify "
+                    "individuals (e.g., the Netflix Prize re-identification via IMDB records).\n\n"
+                    "**Reconstruction attacks:** Publishing too many accurate aggregate statistics allows an attacker to "
+                    "treat them as a system of equations and solve for the underlying microdata — as demonstrated by the "
+                    "U.S. Census Bureau's evaluation of 2010 census data (Abowd, 2018)."
+                ),
+            },
+            "Central Differential Privacy": {
+                "overview": (
+                    "Differential Privacy (DP) is a rigorous mathematical definition of privacy. It ensures the output "
+                    "of a query or ML model remains virtually unchanged whether or not any specific individual's data "
+                    "is included. Central DP stores raw data in a trusted aggregator and adds noise only at query time."
+                ),
+                "techniques": [
+                    ("Laplace Mechanism", "Used for numerical outputs (e.g., average salary). Injects noise from a "
+                     "Laplace distribution scaled by query sensitivity (Δf) divided by ε."),
+                    ("Exponential Mechanism", "Used for categorical outputs (e.g., most common diagnosis). Scores all "
+                     "possible answers and probabilistically selects one, making the best answer most likely while "
+                     "maintaining plausible deniability."),
+                    ("DP-SGD", "For ML models, noise is injected during stochastic gradient descent training rather "
+                     "than at query time, producing a model that is differentially private end-to-end."),
+                ],
+                "tradeoffs": (
+                    "The core variable is ε (epsilon) — the privacy budget. Lower ε means more noise (strong privacy, "
+                    "lower accuracy). Higher ε means less noise (weaker privacy, higher accuracy). Setting ε too low "
+                    "on census data can misallocate public funding; setting it too high can expose vulnerable populations. "
+                    "Central DP offers high utility with less total noise than Local DP, but requires trusting the "
+                    "database owner not to suffer a breach."
+                ),
+                "risks": (
+                    "**Budget depletion:** DP's composition property means privacy degrades with every query. Once the "
+                    "total ε limit is reached, the database must be locked or the budget reset — which weakens the "
+                    "original guarantee. Use the moments accountant or Rényi DP for tight composition tracking."
+                ),
+            },
+            "Local Differential Privacy": {
+                "overview": (
+                    "Local DP privatizes data on the user's device before it is ever transmitted to the server. "
+                    "The aggregator only ever receives already-noisy reports, so even a fully compromised server "
+                    "cannot reconstruct individual inputs."
+                ),
+                "techniques": [
+                    ("Randomized Response", "For binary/categorical attributes: each user randomly reports their true "
+                     "value with probability p, or a random value with probability 1-p."),
+                    ("Duchi / Piecewise Mechanism", "For numerical values, provides better utility than basic "
+                     "randomized response by carefully shaping the noise distribution."),
+                    ("Memoization", "For continuously collected data, ensures a user's repeated responses to the same "
+                     "question are consistent — preventing temporal correlation attacks across sessions."),
+                ],
+                "tradeoffs": (
+                    "Local DP is highly secure: the server is untrusted by design. The cost is utility — LDP requires "
+                    "far more data than central DP to extract meaningful signals because each record carries heavy noise. "
+                    "Typical ε values are 1–8 (vs. < 1 for central DP under strict regulation). Apple uses ε ≈ 8/day "
+                    "for keyboard analytics; Google RAPPOR uses ε ≈ 2–4."
+                ),
+                "risks": (
+                    "**Utility at small scale:** LDP is impractical for small datasets. The noise-to-signal ratio "
+                    "can overwhelm any useful statistical pattern. Ensure you have sufficient data volume before deploying."
+                ),
+            },
+            "Cryptography": {
+                "overview": (
+                    "While anonymization and DP protect against statistical inference, cryptography secures data "
+                    "against unauthorized access. It is the baseline for any modern system and is evaluated by the "
+                    "tool based on your trust model and collaboration needs."
+                ),
+                "techniques": [
+                    ("Symmetric (Private Key)", "Single shared key for encryption and decryption. Computationally "
+                     "efficient — standard for encrypting large databases at rest (AES-256-GCM). Suffers from the "
+                     "key distribution problem: securely sharing the key over a network is inherently risky."),
+                    ("Asymmetric (Public Key)", "Mathematically linked key pair: public key encrypts, private key "
+                     "decrypts. Solves the distribution problem but is computationally expensive."),
+                    ("Hybrid Approach", "Industry standard: asymmetric cryptography briefly exchanges a symmetric key, "
+                     "which then encrypts the actual data payload. Combines security of asymmetric with speed of symmetric."),
+                ],
+                "tradeoffs": (
+                    "Cryptography protects confidentiality and integrity but does not protect the statistical information "
+                    "revealed by query patterns. A correctly encrypted database still reveals *which* queries are made "
+                    "and *how often*. For partner-facing data, per-partner key isolation and rotation policies "
+                    "are essential but add operational complexity."
+                ),
+                "risks": (
+                    "**Key management:** Poor key management is the most common failure mode. Keys stored alongside "
+                    "data, or never rotated, undermine the entire system. Use a managed KMS (AWS KMS, Google Cloud KMS) "
+                    "or HSM for high-sensitivity environments.\n\n"
+                    "**Active adversaries:** Encryption alone doesn't prevent tampering. Always use authenticated "
+                    "encryption (AES-GCM) or add HMAC-SHA256 to detect modification."
+                ),
+            },
+            "Secure MPC": {
+                "overview": (
+                    "Secure MPC moves cryptography beyond protecting data at rest or in transit — it protects data "
+                    "in use. Multiple parties jointly compute a function over their combined inputs while keeping "
+                    "each party's inputs completely private from all others. The tool routes here when multiple "
+                    "organizations want to pool data but legal or trust barriers prevent raw sharing."
+                ),
+                "techniques": [
+                    ("Secret Sharing (SPDZ / BGW)", "The input is split into cryptographic 'shares' distributed "
+                     "across parties. No single party holds enough to reconstruct the input. Best for arithmetic "
+                     "computations under active (malicious) security."),
+                    ("Garbled Circuits (Yao's)", "Converts the computation into an encrypted circuit of logic gates. "
+                     "Better suited for Boolean / comparison operations."),
+                    ("Semi-Honest Protocols (ABY / MP-SPDZ)", "More efficient than malicious-secure protocols. "
+                     "Appropriate when parties are assumed to follow the protocol but may try to learn extra information."),
+                ],
+                "tradeoffs": (
+                    "The primary challenge is massive communication and computational overhead. MPC nodes must "
+                    "constantly exchange cryptographic shares over a network, making MPC orders of magnitude slower "
+                    "than plaintext computation. Organizations must weigh this performance bottleneck against the "
+                    "mathematically proven privacy guarantee that no party learns anything beyond the final output."
+                ),
+                "risks": (
+                    "**Protocol mismatch:** Using a semi-honest protocol when adversaries may deviate from the "
+                    "protocol (active/malicious setting) completely breaks the security guarantee. Always match "
+                    "the protocol security model to your adversary model.\n\n"
+                    "**Communication cost at scale:** For constantly updated data, batch computations and use "
+                    "offline preprocessing phases to reduce online latency."
+                ),
+            },
+            "Confidential Computing": {
+                "overview": (
+                    "Confidential Computing protects data in use via hardware-based Trusted Execution Environments "
+                    "(TEEs). A TEE is a secure enclave carved out on the physical processor. Data processed inside "
+                    "is inaccessible to the host OS, hypervisor, cloud provider, and even privileged system admins. "
+                    "It fills the gap left by DP (no accuracy loss) and MPC (no performance bottleneck)."
+                ),
+                "techniques": [
+                    ("Intel SGX", "Most widely supported enclave technology. Isolates specific code and data in a "
+                     "protected enclave. Suitable for moderate-budget deployments."),
+                    ("Intel TDX / AMD SEV-SNP", "Newer, VM-level isolation with stronger memory encryption. "
+                     "Best for high-budget deployments needing broader workload protection."),
+                    ("ARM TrustZone", "Suited for mobile and edge devices. Lower cost but narrower workload support."),
+                    ("Remote Attestation", "A cryptographic proof that the enclave is running the expected, "
+                     "unmodified code. Essential — send no sensitive data to a TEE before attestation."),
+                ],
+                "tradeoffs": (
+                    "TEEs allow 100% accurate, deterministic computation (no DP noise) at near-native speeds "
+                    "(no MPC communication overhead). They are the right choice when zero accuracy loss is required "
+                    "and the threat model centers on untrusted infrastructure or insiders rather than statistical "
+                    "inference attacks.\n\n"
+                    "**Federated Learning integration:** TEEs can secure the FL aggregation server — edge devices "
+                    "attest the enclave, encrypt their gradients, and send them in. The enclave aggregates without "
+                    "the server owner ever seeing the weight updates (Mo et al., 2021)."
+                ),
+                "risks": (
+                    "**Side-channel attacks:** TEEs rely on physical hardware and are vulnerable to side-channel "
+                    "attacks — adversaries monitoring power consumption, execution timing, or memory access patterns "
+                    "to infer data being processed inside the enclave. Physical security of the hardware matters.\n\n"
+                    "**Enclave code trust:** The security guarantee is only as strong as the enclave code itself. "
+                    "Backdoors or vulnerabilities in enclave software undermine the hardware isolation entirely."
+                ),
+            },
+        }
+
+        def render_deep_dive(tech_name):
+            info = deep_dive.get(tech_name)
+            if not info:
+                return
+            with st.expander(f"📖 Learn more about {tech_name}", expanded=False):
+                st.markdown("#### What is it?")
+                st.write(info["overview"])
+
+                if "techniques" in info:
+                    st.markdown("#### Key Techniques")
+                    for name, desc in info["techniques"]:
+                        st.markdown(f"**{name}:** {desc}")
+
+                st.markdown("#### Tradeoffs")
+                st.write(info["tradeoffs"])
+
+                st.markdown("#### Risks & Failure Modes")
+                st.markdown(info["risks"])
+
         st.subheader("🧠 Why this?")
         st.write(explanations.get(top_tech, ""))
+        render_deep_dive(top_tech)
 
         if show_second:
             st.subheader("🤔 Alternative Option")
             st.write(explanations.get(second_tech, ""))
+            render_deep_dive(second_tech)
 
     # -----------------------------
     # IMPLEMENTATION GUIDANCE (NEW)
