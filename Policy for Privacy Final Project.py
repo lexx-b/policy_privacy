@@ -69,6 +69,197 @@ regulation_input = st.multiselect(
 )
 
 # -----------------------------
+# IMPLEMENTATION GUIDANCE FUNCTION
+# -----------------------------
+def get_implementation_guidance(tech, data_type, access, sharing, update, collection,
+                                 trust, adversary, accuracy, budget, multi, threats, regulation):
+    """
+    Returns use-case-specific implementation guidance based on the recommended
+    technology AND the user's specific questionnaire inputs.
+    """
+
+    guidance = []
+
+    if tech == "Central Differential Privacy":
+        # Epsilon selection
+        if "HIPAA" in regulation or "GDPR" in regulation:
+            guidance.append("**Epsilon (ε) value:** Use ε ≤ 1.0. Strict regulations require tight privacy budgets. "
+                            "Consider ε = 0.1–0.5 for highly sensitive PII under HIPAA/GDPR.")
+        elif accuracy == "Small Error":
+            guidance.append("**Epsilon (ε) value:** Use ε in the range of 1.0–3.0 to balance utility and privacy. "
+                            "This allows small statistical error while maintaining meaningful protection.")
+        elif accuracy == "Statistical":
+            guidance.append("**Epsilon (ε) value:** ε = 3.0–10.0 is acceptable when only statistical patterns matter. "
+                            "Higher epsilon means better utility but weaker privacy guarantees.")
+
+        # Noise mechanism
+        if sharing == "Results Only":
+            guidance.append("**Noise mechanism:** Apply the Laplace mechanism for numeric query outputs (counts, sums, means). "
+                            "Use the Gaussian mechanism if your downstream analysis requires bounded L2 sensitivity.")
+        if sharing == "Model Shared":
+            guidance.append("**Noise mechanism:** Use DP-SGD (differentially private stochastic gradient descent) "
+                            "to inject noise during model training rather than at query time.")
+
+        # Privacy budget management
+        if update in ["Constant", "Periodic"]:
+            guidance.append("**Privacy budget management:** Since data updates frequently, implement a rolling privacy budget "
+                            "with composition tracking (e.g., using the moments accountant or Rényi DP). "
+                            "Each query consumes budget — set a maximum total ε across the data lifecycle.")
+        elif update in ["Rare", "Static"]:
+            guidance.append("**Privacy budget management:** Static datasets allow a fixed global ε budget. "
+                            "Define query categories in advance and pre-allocate budget per category.")
+
+        # Sensitivity calibration
+        if data_type == "PII":
+            guidance.append("**Sensitivity calibration:** Carefully bound the global sensitivity of each query. "
+                            "For PII (e.g., age, income), clip individual values before computing statistics "
+                            "to limit how much one person can skew results.")
+
+        # Auditing
+        if "HIPAA" in regulation or "GDPR" in regulation:
+            guidance.append("**Auditing:** Maintain a privacy loss ledger. Log every query with its ε consumption. "
+                            "This supports regulatory audits and demonstrates accountability.")
+
+    elif tech == "Local Differential Privacy":
+        # Protocol selection
+        if data_type == "PII" and sharing == "Results Only":
+            guidance.append("**Protocol selection:** Use Randomized Response for binary/categorical attributes "
+                            "(e.g., yes/no questions). For numerical values, use the Duchi, Kairouz & Wainwright "
+                            "(square wave) mechanism or the Piecewise mechanism for better utility.")
+        if update == "Constant":
+            guidance.append("**Protocol selection:** For streaming/continuous data from user devices, "
+                            "use memoization (consistent randomization per user per value) to prevent "
+                            "longitudinal privacy leakage across repeated reports.")
+
+        # Epsilon for LDP
+        guidance.append("**Epsilon (ε) for LDP:** LDP requires higher ε than central DP for equivalent utility "
+                        "(typically ε = 1–8). Apple uses ε ≈ 8 per day for keyboard/emoji analytics. "
+                        "Google RAPPOR uses ε ≈ 2–4. Align with your accuracy requirement.")
+
+        # Aggregation server
+        if trust == "No":
+            guidance.append("**Aggregation server:** Since you don't trust the server, LDP is the right call — "
+                            "the server only receives already-privatized reports. Ensure the server cannot "
+                            "link multiple reports to the same user (use anonymous submission or mixnets).")
+
+        # Data collection
+        if collection == "User Devices":
+            guidance.append("**Client-side implementation:** Privatization must happen on the device before transmission. "
+                            "Use a well-audited library (e.g., Google's DP library or Apple's DP framework). "
+                            "Never send raw values to the server even temporarily.")
+
+    elif tech == "Cryptography":
+        # Encryption type
+        if sharing == "Raw Shared":
+            guidance.append("**Encryption at rest and in transit:** Use AES-256-GCM for data at rest. "
+                            "Use TLS 1.3 for all data in transit. Never store encryption keys alongside data.")
+        if trust == "No":
+            guidance.append("**End-to-end encryption:** Since you don't trust the computation provider, "
+                            "implement client-side encryption. The server should only ever see ciphertext. "
+                            "Consider hybrid encryption: RSA/ECDH for key exchange, AES for bulk data.")
+        if "Partners" in threats:
+            guidance.append("**Key management:** Use separate encryption keys per partner. "
+                            "Implement key rotation policies. Use an HSM (Hardware Security Module) "
+                            "or a managed KMS (e.g., AWS KMS, Google Cloud KMS) if budget allows.")
+
+        # Digital signatures / integrity
+        if adversary in ["Active", "Both"]:
+            guidance.append("**Integrity protection:** Against active adversaries, encryption alone is insufficient. "
+                            "Add HMAC-SHA256 or use authenticated encryption (AES-GCM already provides this). "
+                            "Sign data packages with ECDSA to detect tampering.")
+
+        # Regulations
+        if "Financial" in regulation:
+            guidance.append("**Regulatory alignment:** Financial regulations (PCI-DSS, SOX) require documented "
+                            "encryption standards, key management procedures, and access logs. "
+                            "Ensure your implementation is FIPS 140-2 validated if applicable.")
+
+    elif tech == "Secure MPC":
+        # Protocol selection
+        if trust == "No" and multi == "Yes":
+            guidance.append("**Protocol selection:** With no trusted party and multiple computing parties, "
+                            "use Secret Sharing-based MPC (e.g., SPDZ or BGW protocol) for arithmetic computations, "
+                            "or Yao's Garbled Circuits for Boolean/comparison operations.")
+        if adversary in ["Active", "Both"]:
+            guidance.append("**Security model:** Use MPC protocols with active security (malicious model), "
+                            "such as MASCOT or SPDZ2k. These tolerate cheating parties but have higher overhead "
+                            "than semi-honest protocols. Do not use semi-honest-only protocols if adversaries may deviate.")
+        elif adversary == "Passive":
+            guidance.append("**Security model:** Semi-honest (passive) security is sufficient. "
+                            "Consider ABY or MP-SPDZ framework for efficient semi-honest MPC. "
+                            "This reduces communication overhead significantly compared to malicious-secure protocols.")
+
+        # Communication
+        if update == "Constant":
+            guidance.append("**Communication overhead:** MPC has high round-trip communication cost. "
+                            "For constantly updated data, batch computations and minimize interactive rounds. "
+                            "Consider preprocessing (offline phase) to reduce online latency.")
+        if budget == "Low":
+            guidance.append("**Budget constraint:** MPC is computationally expensive. With a low budget, "
+                            "limit MPC to the minimum necessary computation (e.g., only the final aggregation step). "
+                            "Use open-source frameworks like MP-SPDZ or MOTION to avoid licensing costs.")
+
+        # Number of parties
+        guidance.append("**Party setup:** Define the number of computing parties and the corruption threshold upfront. "
+                        "For 3-party computation with one allowed corrupt party, use replicated secret sharing "
+                        "(very efficient). For more parties, use threshold secret sharing (Shamir's scheme).")
+
+    elif tech == "Confidential Computing":
+        # TEE selection
+        if budget == "High":
+            guidance.append("**TEE selection:** With a high budget, consider Intel TDX (Trust Domain Extensions) "
+                            "for VM-level isolation, or AMD SEV-SNP for stronger memory encryption. "
+                            "These are newer and more robust than SGX enclaves.")
+        elif budget == "Moderate":
+            guidance.append("**TEE selection:** Intel SGX (Software Guard Extensions) is the most widely supported "
+                            "enclave technology. Use it for enclave-based computation where only specific code "
+                            "runs in the trusted execution environment.")
+        elif budget == "Low":
+            guidance.append("**TEE selection:** Budget is constrained — consider ARM TrustZone if deploying on "
+                            "mobile/edge devices. For cloud, use provider-managed confidential VMs "
+                            "(e.g., Azure Confidential Computing) which reduce operational overhead.")
+
+        # Attestation
+        guidance.append("**Remote attestation:** Always verify the enclave before sending sensitive data. "
+                        "Use remote attestation (Intel DCAP or third-party attestation services) to cryptographically "
+                        "confirm the enclave is running the expected unmodified code.")
+
+        # Threat model
+        if "Internal" in threats:
+            guidance.append("**Insider threat mitigation:** Confidential Computing is well-suited here. "
+                            "Ensure the enclave code is open-source and auditable so insiders cannot hide backdoors. "
+                            "Use sealed storage to persist encrypted enclave state.")
+
+        if trust == "Partial":
+            guidance.append("**Partial trust scenario:** Since you partially trust the provider, pair Confidential "
+                            "Computing with audit logging outside the enclave. The provider cannot tamper with "
+                            "enclave execution, but log integrity should be verified independently.")
+
+    elif tech == "Anonymization":
+        # Technique selection
+        if data_type == "Research":
+            guidance.append("**Technique selection:** For research data, apply k-anonymity (minimum k=5 recommended) "
+                            "combined with l-diversity to protect against attribute disclosure. "
+                            "For sensitive attributes, also apply t-closeness.")
+        if update in ["Rare", "Static"]:
+            guidance.append("**Static dataset anonymization:** Use generalization and suppression on quasi-identifiers "
+                            "(age ranges instead of exact ages, region instead of ZIP code). "
+                            "Validate re-identification risk using the ARX anonymization tool.")
+
+        # Re-identification warning
+        guidance.append("**Re-identification risk:** Anonymization alone is increasingly insufficient. "
+                        "Always perform a re-identification risk assessment before release. "
+                        "Use prosecutor model (worst-case) risk metrics. If risk > 5%, apply additional suppression or DP.")
+
+        if access == "Public":
+            guidance.append("**Public release:** For public datasets, apply differential privacy on top of anonymization "
+                            "as a defense-in-depth measure. Anonymization protects direct identifiers; "
+                            "DP protects against statistical inference attacks.")
+
+    return guidance
+
+
+# -----------------------------
 # MAIN BUTTON
 # -----------------------------
 if st.button("Get Recommendation"):
@@ -221,11 +412,14 @@ if st.button("Get Recommendation"):
 
     st.subheader("📊 Recommendation")
 
+    top_tech = None
+    second_tech = None
+    show_second = False
+
     if ranked:
         top_tech, top_score = ranked[0]
         st.success(f"🏆 Recommended: {top_tech}")
 
-        show_second = False
         if len(ranked) > 1:
             second_tech, second_score = ranked[1]
             if second_score >= top_score - 3:
@@ -250,13 +444,43 @@ if st.button("Get Recommendation"):
             st.write(explanations.get(second_tech, ""))
 
     # -----------------------------
+    # IMPLEMENTATION GUIDANCE (NEW)
+    # -----------------------------
+    if top_tech:
+        st.subheader("🛠️ Implementation Guidance")
+        st.write(f"Based on your specific answers, here is how to implement **{top_tech}** for your use case:")
+
+        impl_guidance = get_implementation_guidance(
+            top_tech, data_type_input, access_input, sharing_input, update_input,
+            collection_input, trust_input, adversary_input, accuracy_input,
+            budget_input, multi_input, threats_input, regulation_input
+        )
+
+        if impl_guidance:
+            for item in impl_guidance:
+                st.markdown(f"- {item}")
+        else:
+            st.write("No specific implementation notes for this configuration.")
+
+        if show_second and second_tech:
+            st.subheader(f"🛠️ Implementation Guidance: {second_tech} (Alternative)")
+            alt_guidance = get_implementation_guidance(
+                second_tech, data_type_input, access_input, sharing_input, update_input,
+                collection_input, trust_input, adversary_input, accuracy_input,
+                budget_input, multi_input, threats_input, regulation_input
+            )
+            if alt_guidance:
+                for item in alt_guidance:
+                    st.markdown(f"- {item}")
+
+    # -----------------------------
     # HYBRID LAYER
     # -----------------------------
     st.subheader("➕ Recommended Add-ons")
 
     addons = []
 
-    if top_tech != "Cryptography":
+    if top_tech and top_tech != "Cryptography":
         addons.append("Encryption (baseline security)")
 
     if access_input == "Public" or "HIPAA" in regulation_input or "GDPR" in regulation_input:
